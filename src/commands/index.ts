@@ -32,6 +32,7 @@ import { Editor, MarkdownView, Notice, TFile } from "obsidian";
 import { v4 as uuidv4 } from "uuid";
 import { COMMAND_IDS, COMMAND_ICONS, COMMAND_NAMES, CommandId } from "../constants";
 import { setSelectedTextContexts } from "@/aiParams";
+import { ChainType } from "@/chainType";
 
 /**
  * Add a command to the plugin. Supports async callbacks; errors are logged.
@@ -675,5 +676,39 @@ export function registerCommands(
     // Show the Quick Ask panel (pass activeView for leaf binding)
     plugin.quickAskController.show(activeView, view);
     return true;
+  });
+
+  addCommand(plugin, COMMAND_IDS.TIMEBOX_ACTIVE_NOTE, async () => {
+    const activeFile = plugin.app.workspace.getActiveFile();
+    if (!activeFile) {
+      new Notice("No active file found to time-box.");
+      return;
+    }
+
+    // Ensure Copilot chat window is open
+    await plugin.activateView();
+
+    const todayStr = new Date().toISOString().split("T")[0];
+    const prompt = `Extract the tasks from the provided active note context and schedule them around my existing calendar events for today. Output the result ONLY as a \`\`\`timebox-json\`\`\` markdown block in the following format:
+
+\`\`\`json
+{
+  "date": "${todayStr}",
+  "events": [
+    { "summary": "Existing Meeting", "start": "${todayStr}T10:00:00Z", "end": "${todayStr}T10:30:00Z", "isExisting": true },
+    { "summary": "Read Book", "start": "${todayStr}T11:00:00Z", "end": "${todayStr}T12:00:00Z" }
+  ]
+}
+\`\`\``;
+
+    if (plugin.chatUIState) {
+      void plugin.chatUIState.sendMessage(
+        prompt,
+        { notes: [activeFile], urls: [], includeCalendar: true },
+        ChainType.LLM_CHAIN
+      );
+    } else {
+      new Notice("Copilot chat state is not ready.");
+    }
   });
 }

@@ -66,6 +66,8 @@ export interface CopilotSettings {
   amazonBedrockApiKey: string;
   amazonBedrockRegion: string;
   siliconflowApiKey: string;
+  googleCalendarClientId: string;
+  googleCalendarClientSecret: string;
   // GitHub Copilot OAuth tokens
   githubCopilotAccessToken: string;
   githubCopilotToken: string;
@@ -413,6 +415,13 @@ export function sanitizeSettings(settings: CopilotSettings): CopilotSettings {
   // Migration: Rename legacy enableMiyoSearch to enableMiyo.
   if (legacyEnableMiyoSearch !== undefined && sanitizedSettings.enableMiyo === undefined) {
     sanitizedSettings.enableMiyo = legacyEnableMiyoSearch as boolean;
+  }
+
+  if (typeof sanitizedSettings.googleCalendarClientId !== "string") {
+    sanitizedSettings.googleCalendarClientId = DEFAULT_SETTINGS.googleCalendarClientId;
+  }
+  if (typeof sanitizedSettings.googleCalendarClientSecret !== "string") {
+    sanitizedSettings.googleCalendarClientSecret = DEFAULT_SETTINGS.googleCalendarClientSecret;
   }
 
   // Stuff in settings are string even when the interface has number type!

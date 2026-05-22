@@ -292,4 +292,38 @@ Return only the markdown content without any explanations or comments.`,
     modelKey: "",
     lastUsedMs: 0,
   },
+  {
+    title: "Time-box Schedule",
+    content: `Extract the time-blocks from my {activeNote} and fit them around my existing {calendar} events for today.
+
+
+CRITICAL: Output the result ONLY as a single \`\`\`timebox-json\`\`\` code block. Do NOT output a regular markdown table. Do NOT use any other format. Use EXACTLY this JSON structure with these exact key names:
+
+\`\`\`timebox-json
+{
+  "date": "YYYY-MM-DD",
+  "events": [
+    { "summary": "Existing Calendar Event", "start": "YYYY-MM-DDTHH:MM:SSZ", "end": "YYYY-MM-DDTHH:MM:SSZ", "isExisting": true },
+    { "summary": "Sleep", "start": "YYYY-MM-DDTHH:MM:SSZ", "end": "YYYY-MM-DDTHH:MM:SSZ" },
+    { "summary": "Study Calculus", "start": "YYYY-MM-DDTHH:MM:SSZ", "end": "YYYY-MM-DDTHH:MM:SSZ" }
+  ]
+}
+
+\`\`\`
+
+Rules:
+
+The array key MUST be "events" (never "tasks").
+Include a top-level "date" field.
+Existing calendar events get "isExisting": true — do not schedule over them.
+Every item in the note becomes a time-block with a concrete start/end time.
+Use local time for all timestamps.
+After reviewing, we'll iterate in chat until I'm happy, then I'll click Sync.
+`,
+    showInContextMenu: false,
+    showInSlashMenu: true,
+    order: 1150,
+    modelKey: "",
+    lastUsedMs: 0,
+  },
 ];

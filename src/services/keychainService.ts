@@ -20,7 +20,10 @@ import { md5 } from "@/utils/hash";
  * Reason: `isSensitiveKey()` is the canonical source of truth for sensitive fields.
  * Add entries here only for fields that are NOT covered by `isSensitiveKey()`.
  */
-const EXTRA_SECRET_KEYS: readonly string[] = [];
+const EXTRA_SECRET_KEYS: readonly string[] = [
+  "googleCalendarAccessToken",
+  "googleCalendarRefreshToken",
+];
 
 type ModelSecretField = (typeof MODEL_SECRET_FIELDS)[number];
 

@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Platform, TFolder, TFile } from "obsidian";
-import { FileText, Wrench, Folder, FileClock, Globe, CircleDashed } from "lucide-react";
+import { FileText, Wrench, Folder, FileClock, Globe, CircleDashed, Calendar } from "lucide-react";
 import fuzzysort from "fuzzysort";
 import { getToolDescription } from "@/tools/toolManager";
 import { AVAILABLE_TOOLS } from "../constants/tools";
@@ -149,6 +149,17 @@ export function useAtMentionSearch(
           });
         }
 
+        // Add "Google Calendar" option
+        activeOptions.push({
+          key: "google-calendar",
+          title: "Google Calendar",
+          subtitle: undefined,
+          category: "calendar",
+          data: "calendar",
+          content: undefined,
+          icon: React.createElement(Calendar, { className: "tw-size-4" }),
+        });
+
         return activeOptions.length > 0 ? [...activeOptions, ...categoryOptions] : categoryOptions;
       }
 
@@ -191,6 +202,21 @@ export function useAtMentionSearch(
             }
           : null;
 
+      // Check if "google calendar" contains the query
+      const calendarTitle = "google calendar";
+      const calendarMatches = calendarTitle.includes(queryLower) || "calendar".includes(queryLower);
+      const calendarOption = calendarMatches
+        ? {
+            key: "google-calendar",
+            title: "Google Calendar",
+            subtitle: undefined,
+            category: "calendar" as AtMentionCategory,
+            data: "calendar",
+            content: undefined,
+            icon: React.createElement(Calendar, { className: "tw-size-4" }),
+          }
+        : null;
+
       // Combine all non-tool items for unified fuzzy search
       const allNonToolItems = [...noteItems, ...folderItems, ...webTabItems];
       const fuzzySearchResults = fuzzysort.go(query, allNonToolItems, {
@@ -201,11 +227,12 @@ export function useAtMentionSearch(
 
       const rankedNonToolItems = fuzzySearchResults.map((result) => result.obj);
 
-      // Tools first, then Active Web Tab / Active Note (if matches), then everything else
+      // Tools first, then Active Web Tab / Active Note / Calendar (if matches), then everything else
       return [
         ...matchingTools,
         ...(activeWebTabOption ? [activeWebTabOption] : []),
         ...(activeNoteOption ? [activeNoteOption] : []),
+        ...(calendarOption ? [calendarOption] : []),
         ...rankedNonToolItems,
       ].slice(0, MAX_SEARCH_RESULTS);
     } else {

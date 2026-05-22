@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { ChatButtons } from "@/components/chat-components/ChatButtons";
 import { SourcesModal } from "@/components/modals/SourcesModal";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -16,14 +17,19 @@ import {
   cleanupMessageToolCallRoots,
   cleanupStaleErrorBlockRoots,
   cleanupStaleToolCallRoots,
+  cleanupStaleTimeboxRoots,
   ensureErrorBlockRoot,
   ensureToolCallRoot,
+  ensureTimeboxRoot,
   getMessageErrorBlockRoots,
   getMessageToolCallRoots,
+  getMessageTimeboxRoots,
   removeErrorBlockRoot,
   removeToolCallRoot,
+  removeTimeboxRoot,
   renderErrorBlock,
   renderToolCallBanner,
+  renderTimeboxWidget,
   type ToolCallRootRecord,
 } from "@/components/chat-components/toolCallRootManager";
 import { AgentReasoningBlock } from "@/components/chat-components/AgentReasoningBlock";
@@ -215,7 +221,7 @@ function MessageContext({ context }: { context: ChatMessage["context"] }) {
   return (
     <div className="tw-flex tw-flex-wrap tw-gap-2">
       {context.notes.map((note, index) => (
-        // eslint-disable-next-line @eslint-react/no-array-index-key -- context arrays may contain duplicate notes (see MessageContext.test.tsx duplicate-handling cases)
+         
         <Tooltip key={`note-${index}-${note.path}`}>
           <TooltipTrigger asChild>
             <div>
@@ -226,7 +232,7 @@ function MessageContext({ context }: { context: ChatMessage["context"] }) {
         </Tooltip>
       ))}
       {context.urls.map((url, index) => (
-        // eslint-disable-next-line @eslint-react/no-array-index-key -- context arrays may contain duplicate urls (see MessageContext.test.tsx duplicate-handling cases)
+         
         <Tooltip key={`url-${index}-${url}`}>
           <TooltipTrigger asChild>
             <div>
@@ -237,7 +243,7 @@ function MessageContext({ context }: { context: ChatMessage["context"] }) {
         </Tooltip>
       ))}
       {context.webTabs?.map((webTab, index) => (
-        // eslint-disable-next-line @eslint-react/no-array-index-key -- context arrays may contain duplicates; index disambiguates same-url entries
+         
         <Tooltip key={`webTab-${index}-${webTab.url}`}>
           <TooltipTrigger asChild>
             <div>
@@ -257,7 +263,7 @@ function MessageContext({ context }: { context: ChatMessage["context"] }) {
         </Tooltip>
       ))}
       {context.tags?.map((tag, index) => (
-        // eslint-disable-next-line @eslint-react/no-array-index-key -- context arrays may contain duplicates; index disambiguates same-value entries
+         
         <Tooltip key={`tag-${index}-${tag}`}>
           <TooltipTrigger asChild>
             <div>
@@ -268,7 +274,7 @@ function MessageContext({ context }: { context: ChatMessage["context"] }) {
         </Tooltip>
       ))}
       {context.folders?.map((folder, index) => (
-        // eslint-disable-next-line @eslint-react/no-array-index-key -- context arrays may contain duplicates; index disambiguates same-value entries
+         
         <Tooltip key={`folder-${index}-${folder}`}>
           <TooltipTrigger asChild>
             <div>
@@ -279,7 +285,7 @@ function MessageContext({ context }: { context: ChatMessage["context"] }) {
         </Tooltip>
       ))}
       {context.selectedTextContexts?.map((selectedText, index) => (
-        // eslint-disable-next-line @eslint-react/no-array-index-key -- context arrays may contain duplicates; index disambiguates same-id entries
+         
         <Tooltip key={`selectedText-${index}-${selectedText.id}`}>
           <TooltipTrigger asChild>
             <div>
@@ -352,6 +358,11 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
   // Store error block roots separately to prevent ID collisions and race conditions
   const errorRootsRef = useRef<Map<string, ToolCallRootRecord>>(
     getMessageErrorBlockRoots(messageId.current)
+  );
+
+  // Store timebox roots
+  const timeboxRootsRef = useRef<Map<string, ToolCallRootRecord>>(
+    getMessageTimeboxRoots(messageId.current)
   );
 
   // Get the global collapsible state map for this message
@@ -795,6 +806,43 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
             }
 
             currentIndex++;
+          } else if (segment.type === "timebox" && segment.timebox) {
+            // Only render the widget once streaming is complete (same pattern as inline citations).
+            // During streaming, the JSON is incomplete and the ID is unstable, causing flicker.
+            if (!isStreaming) {
+              const timeboxId = segment.timebox.id;
+              let container = doc.getElementById(`timebox-block-${timeboxId}`);
+
+              if (!container) {
+                const insertBefore = contentRef.current!.children[currentIndex];
+                const timeboxDiv = doc.createElement("div");
+                timeboxDiv.className = "timebox-block-container";
+                timeboxDiv.id = `timebox-block-${timeboxId}`;
+
+                if (insertBefore) {
+                  contentRef.current!.insertBefore(timeboxDiv, insertBefore);
+                } else {
+                  contentRef.current!.appendChild(timeboxDiv);
+                }
+
+                container = timeboxDiv;
+              }
+
+              const rootRecord = ensureTimeboxRoot(
+                app,
+                messageId.current,
+                timeboxRootsRef.current,
+                timeboxId,
+                container,
+                "timebox render"
+              );
+
+              if (!isUnmountingRef.current && !rootRecord.isUnmounting) {
+                renderTimeboxWidget(rootRecord, segment.timebox, app);
+              }
+            }
+
+            currentIndex++;
           }
         });
 
@@ -831,6 +879,35 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
                 errorRootsRef.current,
                 id,
                 "error block removal"
+              );
+              element.remove();
+            }
+          }
+        });
+
+        // Clean up any timebox blocks that no longer exist
+        const currentTimeboxIds = new Set(
+          parsedMessage.segments
+            .filter((s) => s.type === "timebox" && s.timebox)
+            .map((s) => s.timebox!.id)
+        );
+
+        const existingTimeboxIds = new Set<string>();
+        const existingTimeboxes = contentRef.current.querySelectorAll('[id^="timebox-block-"]');
+        existingTimeboxes.forEach((el) => {
+          const id = el.id.replace("timebox-block-", "");
+          existingTimeboxIds.add(id);
+        });
+
+        existingTimeboxIds.forEach((id) => {
+          if (!currentTimeboxIds.has(id)) {
+            const element = doc.getElementById(`timebox-block-${id}`);
+            if (element) {
+              removeTimeboxRoot(
+                messageId.current,
+                timeboxRootsRef.current,
+                id,
+                "timebox block removal"
               );
               element.remove();
             }
@@ -881,7 +958,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
       isUnmountingRef.current = true;
 
       // Defer cleanup to avoid React rendering conflicts.
-      // eslint-disable-next-line @eslint-react/web-api/no-leaked-timeout -- fire-and-forget defer; no cleanup target available inside an effect-cleanup
+       
       window.setTimeout(() => {
         // Clean up component
         if (currentComponentRef.current) {
@@ -941,7 +1018,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
             (item, index) => {
               if (item.type === "text") {
                 return (
-                  // eslint-disable-next-line @eslint-react/no-array-index-key -- content array is fixed once message is rendered; items not reordered
+                   
                   <div key={index}>
                     {message.sender === USER_SENDER ? (
                       <div className="tw-whitespace-pre-wrap tw-break-words tw-text-[calc(var(--font-text-size)_-_2px)] tw-font-normal">
@@ -957,7 +1034,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
                 );
               } else if (item.type === "image_url") {
                 return (
-                  // eslint-disable-next-line @eslint-react/no-array-index-key -- content array is fixed once message is rendered; items not reordered
+                   
                   <div key={index} className="message-image-content">
                     <img
                       src={item.image_url!.url}

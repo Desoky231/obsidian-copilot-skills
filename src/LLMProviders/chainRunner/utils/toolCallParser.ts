@@ -19,11 +19,19 @@ export interface ErrorMarker {
 
 interface ParsedMessage {
   segments: Array<{
-    type: "text" | "toolCall" | "error";
+    type: "text" | "toolCall" | "error" | "timebox";
     content: string;
     toolCall?: ToolCallMarker;
     error?: ErrorMarker;
+    timebox?: TimeboxMarker;
   }>;
+}
+
+export interface TimeboxMarker {
+  id: string;
+  data: string;
+  startIndex: number;
+  endIndex: number;
 }
 
 const TOOL_RESULT_UI_MAX_LENGTH = 5000;
@@ -129,6 +137,87 @@ function parseErrorChunks(
 }
 
 /**
+ * Parse timebox chunks from a text segment
+ * Format: ```timebox-json ... ```
+ */
+function parseTimeboxChunks(
+  text: string,
+  baseIndex: number = 0,
+  messagePrefix: string = ""
+): Array<{
+  type: "text" | "error" | "timebox";
+  content: string;
+  error?: ErrorMarker;
+  timebox?: TimeboxMarker;
+}> {
+  // First get error chunks (if any)
+  const errorChunks = parseErrorChunks(text, baseIndex, messagePrefix);
+
+  const finalChunks: Array<{
+    type: "text" | "error" | "timebox";
+    content: string;
+    error?: ErrorMarker;
+    timebox?: TimeboxMarker;
+  }> = [];
+  const timeboxRegex = /```timebox-json\n([\s\S]*?)```/g;
+
+  errorChunks.forEach((chunk) => {
+    if (chunk.type !== "text") {
+      finalChunks.push(chunk);
+      return;
+    }
+
+    const chunkText = chunk.content;
+    const chunkBaseIndex = baseIndex + text.indexOf(chunkText); // approximation, but works if chunkText is unique enough
+
+    let lastIndex = 0;
+    let match;
+
+    while ((match = timeboxRegex.exec(chunkText)) !== null) {
+      if (match.index > lastIndex) {
+        finalChunks.push({
+          type: "text",
+          content: chunkText.slice(lastIndex, match.index),
+        });
+      }
+
+      const [fullMatch, timeboxContent] = match;
+      const startIndex = chunkBaseIndex + match.index;
+      // Use a content-based hash so the ID is stable across streaming chunks
+      const contentHash = timeboxContent
+        .trim()
+        .split("")
+        .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+      const timeboxId = messagePrefix
+        ? `${messagePrefix}-timebox-${contentHash}`
+        : `timebox-${contentHash}`;
+
+      finalChunks.push({
+        type: "timebox",
+        content: fullMatch,
+        timebox: {
+          id: timeboxId,
+          data: timeboxContent.trim(),
+          startIndex: startIndex,
+          endIndex: chunkBaseIndex + match.index + fullMatch.length,
+        },
+      });
+
+      lastIndex = match.index + fullMatch.length;
+    }
+
+    if (lastIndex < chunkText.length) {
+      finalChunks.push({
+        type: "text",
+        content: chunkText.slice(lastIndex),
+      });
+    }
+  });
+
+  return finalChunks;
+}
+
+/**
  * Parse tool call markers and error chunks from a message
  * Format: <!--TOOL_CALL_START:id:toolName:displayName:emoji:confirmationMessage:isExecuting-->content<!--TOOL_CALL_END:id:result-->
  * Error Format: <errorChunk>error content</errorChunk>
@@ -148,7 +237,7 @@ export function parseToolCallMarkers(message: string, messageId?: string): Parse
     // Add text before the tool call (and parse any error chunks in it)
     if (match.index > lastIndex) {
       const textBefore = message.slice(lastIndex, match.index);
-      const parsedChunks = parseErrorChunks(textBefore, lastIndex, messageId);
+      const parsedChunks = parseTimeboxChunks(textBefore, lastIndex, messageId);
 
       // Only add non-empty text segments
       parsedChunks.forEach((chunk) => {
@@ -162,6 +251,12 @@ export function parseToolCallMarkers(message: string, messageId?: string): Parse
             type: "error",
             content: chunk.content,
             error: chunk.error,
+          });
+        } else if (chunk.type === "timebox" && chunk.timebox) {
+          segments.push({
+            type: "timebox",
+            content: chunk.content,
+            timebox: chunk.timebox,
           });
         }
       });
@@ -209,10 +304,10 @@ export function parseToolCallMarkers(message: string, messageId?: string): Parse
     lastIndex = match.index + fullMatch.length;
   }
 
-  // Add any remaining text (and parse any error chunks in it)
+  // Add any remaining text (and parse any error/timebox chunks in it)
   if (lastIndex < message.length) {
     const remainingText = message.slice(lastIndex);
-    const parsedChunks = parseErrorChunks(remainingText, lastIndex, messageId);
+    const parsedChunks = parseTimeboxChunks(remainingText, lastIndex, messageId);
 
     parsedChunks.forEach((chunk) => {
       if (chunk.type === "text" && chunk.content.trim()) {
@@ -226,13 +321,19 @@ export function parseToolCallMarkers(message: string, messageId?: string): Parse
           content: chunk.content,
           error: chunk.error,
         });
+      } else if (chunk.type === "timebox" && chunk.timebox) {
+        segments.push({
+          type: "timebox",
+          content: chunk.content,
+          timebox: chunk.timebox,
+        });
       }
     });
   }
 
-  // If no segments found, return the entire message as text (after checking for errors)
+  // If no segments found, return the entire message as text (after checking for errors/timebox)
   if (segments.length === 0) {
-    const parsedChunks = parseErrorChunks(message, 0, messageId);
+    const parsedChunks = parseTimeboxChunks(message, 0, messageId);
 
     parsedChunks.forEach((chunk) => {
       if (chunk.type === "text") {
@@ -245,6 +346,12 @@ export function parseToolCallMarkers(message: string, messageId?: string): Parse
           type: "error",
           content: chunk.content,
           error: chunk.error,
+        });
+      } else if (chunk.type === "timebox" && chunk.timebox) {
+        segments.push({
+          type: "timebox",
+          content: chunk.content,
+          timebox: chunk.timebox,
         });
       }
     });

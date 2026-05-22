@@ -418,7 +418,8 @@ export class ChatManager {
     includeActiveNote: boolean = false,
     includeActiveWebTab: boolean = false,
     content?: MessageContent[],
-    updateLoadingMessage?: (message: string) => void
+    updateLoadingMessage?: (message: string) => void,
+    includeCalendar: boolean = false
   ): Promise<string> {
     try {
       logInfo(`[ChatManager] Sending message: "${displayText}"`);
@@ -446,6 +447,9 @@ export class ChatManager {
         updatedContext.webTabs || [],
         shouldIncludeActiveWebTab
       );
+
+      // Merge explicit param with the object context state
+      updatedContext.includeCalendar = includeCalendar || updatedContext.includeCalendar;
 
       // Create the message with initial content
       const currentRepo = this.getCurrentMessageRepo();

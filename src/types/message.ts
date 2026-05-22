@@ -74,6 +74,7 @@ export interface MessageContext {
   folders?: string[];
   selectedTextContexts?: SelectedTextContext[];
   webTabs?: WebTabContext[];
+  includeCalendar?: boolean;
 }
 
 /**

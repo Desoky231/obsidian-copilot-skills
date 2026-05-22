@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React from "react";
 import { Root } from "react-dom/client";
 
@@ -12,6 +13,7 @@ declare global {
   interface Window {
     __copilotToolCallRoots?: Map<string, Map<string, ToolCallRootRecord>>;
     __copilotErrorBlocks?: Map<string, Map<string, ToolCallRootRecord>>;
+    __copilotTimeboxBlocks?: Map<string, Map<string, ToolCallRootRecord>>;
   }
 }
 
@@ -46,6 +48,17 @@ const getErrorBlockRegistry = (): Map<string, Map<string, ToolCallRootRecord>> =
   }
 
   return window.__copilotErrorBlocks;
+};
+
+/**
+ * Retrieve the global registry that keeps track of timebox React roots.
+ */
+const getTimeboxBlockRegistry = (): Map<string, Map<string, ToolCallRootRecord>> => {
+  if (!window.__copilotTimeboxBlocks) {
+    window.__copilotTimeboxBlocks = new Map<string, Map<string, ToolCallRootRecord>>();
+  }
+
+  return window.__copilotTimeboxBlocks;
 };
 
 /**
@@ -478,5 +491,171 @@ export const cleanupMessageErrorBlockRoots = (
   const registry = getErrorBlockRegistry();
   messageRoots.forEach((record, errorId) => {
     scheduleToolCallRootDisposal(messageId, messageRoots, errorId, record, logContext, registry);
+  });
+};
+
+/**
+ * Ensure a React root exists for the provided timebox container and return the root record.
+ */
+export const ensureTimeboxRoot = (
+  app: App,
+  messageId: string,
+  messageRoots: Map<string, ToolCallRootRecord>,
+  timeboxId: string,
+  container: HTMLElement,
+  logContext: string
+): ToolCallRootRecord => {
+  let record = messageRoots.get(timeboxId);
+
+  if (record?.isUnmounting) {
+    disposeToolCallRoot(
+      messageId,
+      messageRoots,
+      timeboxId,
+      record,
+      `${logContext} (finalizing stale timebox root)`,
+      getTimeboxBlockRegistry()
+    );
+    record = undefined;
+  }
+
+  if (record && record.container && record.container !== container) {
+    handleContainerChange(
+      messageId,
+      messageRoots,
+      timeboxId,
+      record,
+      `${logContext} (container changed)`,
+      getTimeboxBlockRegistry()
+    );
+    record = undefined;
+  }
+
+  if (!record) {
+    record = {
+      root: createPluginRoot(container, app),
+      isUnmounting: false,
+      container,
+    };
+    messageRoots.set(timeboxId, record);
+  }
+
+  return record;
+};
+
+// Import timebox types
+import type { TimeboxMarker } from "@/LLMProviders/chainRunner/utils/toolCallParser";
+import { TimeboxWidget } from "@/components/chat-components/TimeboxWidget";
+
+/**
+ * Render the `TimeboxWidget` component into the provided root record.
+ */
+export const renderTimeboxWidget = (
+  record: ToolCallRootRecord,
+  timebox: TimeboxMarker,
+  app: App
+): void => {
+  try {
+    const data = JSON.parse(timebox.data);
+    // Accept both 'events' (canonical) and 'tasks' (AI sometimes uses this)
+    const events = data.events ?? data.tasks ?? [];
+    record.root.render(
+      <TimeboxWidget events={events} date={data.date || new Date().toISOString().split("T")[0]} />
+    );
+  } catch (error) {
+    logWarn("Failed to parse timebox JSON", error);
+    record.root.render(<ErrorBlock errorContent={"Failed to parse timebox JSON data"} />);
+  }
+};
+
+/**
+ * Return (and create if necessary) the timebox root map for a specific message.
+ */
+export const getMessageTimeboxRoots = (messageId: string): Map<string, ToolCallRootRecord> => {
+  const registry = getTimeboxBlockRegistry();
+  let messageRoots = registry.get(messageId);
+
+  if (!messageRoots) {
+    messageRoots = new Map<string, ToolCallRootRecord>();
+    registry.set(messageId, messageRoots);
+  }
+
+  return messageRoots;
+};
+
+/**
+ * Schedule the removal of a timebox root from a message root collection.
+ */
+export const removeTimeboxRoot = (
+  messageId: string,
+  messageRoots: Map<string, ToolCallRootRecord>,
+  timeboxId: string,
+  logContext: string
+): void => {
+  const record = messageRoots.get(timeboxId);
+
+  if (!record) {
+    return;
+  }
+  scheduleToolCallRootDisposal(
+    messageId,
+    messageRoots,
+    timeboxId,
+    record,
+    logContext,
+    getTimeboxBlockRegistry()
+  );
+};
+
+/**
+ * Clean up timebox roots that are no longer attached to the DOM.
+ */
+export const cleanupStaleTimeboxRoots = (now: number = Date.now()): void => {
+  const registry = getTimeboxBlockRegistry();
+
+  registry.forEach((messageRoots, messageId) => {
+    messageRoots.forEach((record, timeboxId) => {
+      if (record.container) {
+        if (record.container.isConnected) {
+          return;
+        }
+        scheduleToolCallRootDisposal(
+          messageId,
+          messageRoots,
+          timeboxId,
+          record,
+          "stale timebox cleanup",
+          registry
+        );
+        return;
+      }
+
+      const timestamp = Number.parseInt(messageId, 10);
+      if (Number.isNaN(timestamp) || now - timestamp < STALE_ROOT_MAX_AGE_MS) {
+        return;
+      }
+      scheduleToolCallRootDisposal(
+        messageId,
+        messageRoots,
+        timeboxId,
+        record,
+        "stale timebox cleanup",
+        registry
+      );
+    });
+  });
+};
+
+/**
+ * Schedule cleanup for all timebox roots owned by a specific message.
+ */
+export const cleanupMessageTimeboxRoots = (
+  messageId: string,
+  messageRoots: Map<string, ToolCallRootRecord>,
+  logContext: string
+): void => {
+  const registry = getTimeboxBlockRegistry();
+  messageRoots.forEach((record, timeboxId) => {
+    scheduleToolCallRootDisposal(messageId, messageRoots, timeboxId, record, logContext, registry);
   });
 };

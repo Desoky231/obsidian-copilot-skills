@@ -22,13 +22,14 @@ import {
   updateSetting,
   useSettingsValue,
 } from "@/settings/model";
-import { ArrowUpRight, Info, Plus, ShieldCheck, Trash2, Unlock } from "lucide-react";
+import { ArrowUpRight, Info, Plus, ShieldCheck, Trash2, Unlock, Calendar } from "lucide-react";
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { MigrateConfirmModal } from "@/components/modals/MigrateConfirmModal";
 import { type App, Notice } from "obsidian";
 import React, { useCallback, useState } from "react";
 import { getPromptFilePath, SystemPromptAddModal } from "@/system-prompts";
 import { useSystemPrompts } from "@/system-prompts/state";
+import { GoogleCalendarService } from "@/services/googleCalendarService";
 
 /**
  * Returns a `saveData` callback bound to the loaded Copilot plugin instance.
@@ -296,6 +297,48 @@ export const AdvancedSettings: React.FC = () => {
           onChange={(value) => updateSetting("userSystemPromptsFolder", value)}
           placeholder="copilot/system-prompts"
         />
+      </section>
+
+      {/* Integrations Section */}
+      <section className="tw-space-y-4 tw-rounded-lg tw-border tw-p-4">
+        <div className="tw-text-xl tw-font-bold">Integrations</div>
+
+        <SettingItem
+          type="text"
+          title="Google Calendar Client ID"
+          description="The OAuth Client ID for your Google Cloud project."
+          value={settings.googleCalendarClientId}
+          onChange={(value) => updateSetting("googleCalendarClientId", value)}
+          placeholder="Client ID"
+        />
+
+        <SettingItem
+          type="password"
+          title="Google Calendar Client Secret"
+          description="The OAuth Client Secret for your Google Cloud project. Saved securely in the Obsidian Keychain."
+          value={settings.googleCalendarClientSecret}
+          onChange={(value) => updateSetting("googleCalendarClientSecret", value)}
+          placeholder="Client Secret"
+        />
+
+        <SettingItem
+          type="custom"
+          title="Connect Google Calendar"
+          description="Authorize the plugin to access your Google Calendar. Your session tokens are stored securely in the Obsidian Keychain."
+        >
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => {
+              const service = GoogleCalendarService.getInstance();
+              void service.initiateLogin();
+            }}
+            className="tw-gap-1.5"
+          >
+            <Calendar className="tw-size-4" />
+            Connect Google Calendar
+          </Button>
+        </SettingItem>
       </section>
 
       {/* Others Section */}

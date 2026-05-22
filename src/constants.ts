@@ -19,6 +19,11 @@ const DEFAULT_SYSTEM_PROMPTS_FOLDER = `${COPILOT_FOLDER_ROOT}/system-prompts`;
 const DEFAULT_PROJECTS_FOLDER = `${COPILOT_FOLDER_ROOT}/projects`;
 const DEFAULT_CONVERTED_DOC_OUTPUT_FOLDER = "";
 export const DEFAULT_QA_EXCLUSIONS_SETTING = COPILOT_FOLDER_ROOT;
+
+// Google Calendar OAuth Constants
+export const GOOGLE_CALENDAR_REDIRECT_URI = "http://localhost:4567/callback";
+export const GOOGLE_CALENDAR_SCOPES = "https://www.googleapis.com/auth/calendar.events";
+
 export const DEFAULT_SYSTEM_PROMPT = `You are Obsidian Copilot, a helpful assistant that integrates AI to Obsidian note-taking.
   1. Never mention that you do not have access to something. Always rely on the user provided context.
   2. Always answer to the best of your knowledge. If you are unsure about something, say so and ask the user to provide more context.
@@ -801,6 +806,7 @@ export const COMMAND_IDS = {
   CLEAR_LOG_FILE: "clear-log-file",
   DOWNLOAD_YOUTUBE_SCRIPT: "download-youtube-script",
   TRIGGER_QUICK_ASK: "trigger-quick-ask",
+  TIMEBOX_ACTIVE_NOTE: "timebox-active-note",
 } as const;
 
 export const COMMAND_NAMES: Record<CommandId, string> = {
@@ -829,6 +835,7 @@ export const COMMAND_NAMES: Record<CommandId, string> = {
   [COMMAND_IDS.CLEAR_LOG_FILE]: "Clear log file",
   [COMMAND_IDS.DOWNLOAD_YOUTUBE_SCRIPT]: "Download YouTube Script (plus)",
   [COMMAND_IDS.TRIGGER_QUICK_ASK]: "Quick Ask",
+  [COMMAND_IDS.TIMEBOX_ACTIVE_NOTE]: "Time-Box Active Note (Google Calendar)",
 };
 
 export type CommandId = (typeof COMMAND_IDS)[keyof typeof COMMAND_IDS];
@@ -848,6 +855,7 @@ export const COMMAND_ICONS: Partial<Record<CommandId, string>> = {
   [COMMAND_IDS.ADD_WEB_SELECTION_TO_CHAT_CONTEXT]: "globe",
   [COMMAND_IDS.ADD_CUSTOM_COMMAND]: "plus-circle",
   [COMMAND_IDS.APPLY_CUSTOM_COMMAND]: "play-circle",
+  [COMMAND_IDS.TIMEBOX_ACTIVE_NOTE]: "calendar-clock",
   [COMMAND_IDS.INDEX_VAULT_TO_COPILOT_INDEX]: "refresh-cw",
   [COMMAND_IDS.FORCE_REINDEX_VAULT_TO_COPILOT_INDEX]: "rotate-cw",
   [COMMAND_IDS.CLEAR_LOCAL_COPILOT_INDEX]: "trash-2",
@@ -905,6 +913,8 @@ export const DEFAULT_SETTINGS: CopilotSettings = {
   amazonBedrockApiKey: "",
   amazonBedrockRegion: "",
   siliconflowApiKey: "",
+  googleCalendarClientId: "",
+  googleCalendarClientSecret: "",
   // GitHub Copilot OAuth tokens
   githubCopilotAccessToken: "",
   githubCopilotToken: "",

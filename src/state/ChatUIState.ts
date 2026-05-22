@@ -65,7 +65,8 @@ export class ChatUIState {
     includeActiveNote: boolean = false,
     includeActiveWebTab: boolean = false,
     content?: MessageContent[],
-    updateLoadingMessage?: (message: string) => void
+    updateLoadingMessage?: (message: string) => void,
+    includeCalendar: boolean = false
   ): Promise<string> {
     const messageId = await this.chatManager.sendMessage(
       displayText,
@@ -74,7 +75,8 @@ export class ChatUIState {
       includeActiveNote,
       includeActiveWebTab,
       content,
-      updateLoadingMessage
+      updateLoadingMessage,
+      includeCalendar
     );
     this.notifyListeners();
     return messageId;

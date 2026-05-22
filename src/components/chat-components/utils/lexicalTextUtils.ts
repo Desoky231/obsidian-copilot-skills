@@ -18,12 +18,20 @@ import { $createToolPillNode } from "../pills/ToolPillNode";
 import { $createFolderPillNode } from "../pills/FolderPillNode";
 import { $createWebTabPillNode } from "../pills/WebTabPillNode";
 import { $createActiveWebTabPillNode } from "../pills/ActiveWebTabPillNode";
+import { $createCalendarPillNode } from "../pills/CalendarPillNode";
 import { logInfo } from "@/logger";
 import { AVAILABLE_TOOLS } from "../constants/tools";
 
 declare const app: App;
 
-export type PillType = "notes" | "tools" | "folders" | "active-note" | "webTabs" | "activeWebTab";
+export type PillType =
+  | "notes"
+  | "tools"
+  | "folders"
+  | "active-note"
+  | "webTabs"
+  | "activeWebTab"
+  | "calendar";
 
 // Type representing different kinds of parsed content segments
 export type ParsedContentType =
@@ -32,7 +40,8 @@ export type ParsedContentType =
   | "active-note-pill"
   | "url-pill"
   | "tool-pill"
-  | "folder-pill";
+  | "folder-pill"
+  | "calendar-pill";
 
 // Type representing different pattern matching categories
 export type PatternType = "notes" | "urls" | "tools" | "customTemplates";
@@ -79,6 +88,8 @@ function $createPillNode(pillData: PillData) {
       break;
     case "activeWebTab":
       return $createActiveWebTabPillNode();
+    case "calendar":
+      return $createCalendarPillNode();
   }
 
   throw new Error(`Invalid pill data: ${JSON.stringify(pillData)}`);
@@ -517,6 +528,11 @@ export function parseTextForPills(
           type: "active-note-pill",
           content: "activeNote",
         });
+      } else if (templateContent === "calendar" || templateContent === "gcal") {
+        segments.push({
+          type: "calendar-pill",
+          content: templateContent,
+        });
       } else {
         const resolvedFolder = resolveFolderReference(templateContent);
 
@@ -574,6 +590,8 @@ export function createNodesFromSegments(segments: ParsedContent[]): LexicalNode[
       nodes.push($createToolPillNode(segment.toolName));
     } else if (segment.type === "folder-pill" && segment.folder) {
       nodes.push($createFolderPillNode(segment.folder.path));
+    } else if (segment.type === "calendar-pill") {
+      nodes.push($createCalendarPillNode());
     }
   }
 

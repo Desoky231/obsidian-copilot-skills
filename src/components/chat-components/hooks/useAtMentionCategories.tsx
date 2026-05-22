@@ -10,7 +10,8 @@ export type AtMentionCategory =
   | "folders"
   | "activeNote"
   | "webTabs"
-  | "activeWebTab";
+  | "activeWebTab"
+  | "calendar";
 
 export interface AtMentionOption extends TypeaheadOption {
   category: AtMentionCategory;

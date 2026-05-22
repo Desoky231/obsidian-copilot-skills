@@ -275,6 +275,7 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
     contextTags,
     contextFolders,
     webTabs,
+    includeCalendar,
   }: {
     toolCalls?: string[];
     urls?: string[];
@@ -282,6 +283,7 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
     contextTags?: string[];
     contextFolders?: string[];
     webTabs?: WebTabContext[];
+    includeCalendar?: boolean;
   } = {}) => {
     if (!inputMessage && selectedImages.length === 0) return;
 
@@ -342,6 +344,7 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
         folders: contextFolders || [],
         selectedTextContexts,
         webTabs: webTabs || [],
+        includeCalendar,
       };
 
       // Clear input and images
@@ -359,7 +362,8 @@ const ChatInternal: React.FC<ChatProps & { chatInput: ReturnType<typeof useChatI
         effectiveIncludeActiveNote,
         effectiveIncludeActiveWebTab,
         content.length > 0 ? content : undefined,
-        safeSet.setLoadingMessage
+        safeSet.setLoadingMessage,
+        includeCalendar
       );
 
       // Add to user message history

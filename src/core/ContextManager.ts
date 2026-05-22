@@ -215,6 +215,16 @@ export class ContextManager {
       const webTabs = message.context?.webTabs || [];
       const webTabContextAddition = await this.contextProcessor.processContextWebTabs(webTabs);
 
+      // 8.5 Process calendar context
+      let calendarContextAddition = "";
+      if (message.context?.includeCalendar) {
+        const { GoogleCalendarService } = await import("@/services/googleCalendarService");
+        const service = GoogleCalendarService.getInstance();
+        updateLoadingMessage?.("Fetching Google Calendar events...");
+        const calendarXml = await service.fetchCalendarEventsAsXML();
+        calendarContextAddition = "\n\n" + calendarXml + "\n";
+      }
+
       // 9. Build context portion separately (for compaction boundary preservation)
       const contextPortion =
         l2Context +
@@ -223,7 +233,8 @@ export class ContextManager {
         folderContextAddition +
         urlContextAddition.urlContext +
         selectedTextContextAddition +
-        webTabContextAddition;
+        webTabContextAddition +
+        calendarContextAddition;
 
       // Combine everything (L2 previous context, then L3 current turn context)
       let finalProcessedMessage = processedUserMessage + contextPortion;
@@ -284,6 +295,7 @@ export class ContextManager {
             urlContext: urlContextAddition.urlContext,
             selectedText: selectedTextContextAddition,
             webTabContext: webTabContextAddition,
+            calendarContext: calendarContextAddition,
           });
 
       return {
@@ -511,6 +523,9 @@ export class ContextManager {
     this.appendParsedSegments(turnSegments, params.urlContext);
     this.appendParsedSegments(turnSegments, params.selectedText);
     this.appendParsedSegments(turnSegments, params.webTabContext);
+
+    // Add calendar context as a raw unparsed segment (or let appendParsedSegments handle it)
+    this.appendParsedSegments(turnSegments, params.calendarContext || "");
 
     if (turnSegments.length > 0) {
       layerSegments.L3_TURN = turnSegments;
@@ -775,4 +790,5 @@ interface BuildPromptContextEnvelopeParams {
   urlContext: string;
   selectedText: string;
   webTabContext: string;
+  calendarContext?: string;
 }

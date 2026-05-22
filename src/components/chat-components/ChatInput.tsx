@@ -40,6 +40,7 @@ import { $removePillsByFolder } from "./pills/FolderPillNode";
 import { $removePillsByToolName, $createToolPillNode } from "./pills/ToolPillNode";
 import { $removeActiveWebTabPills } from "./pills/ActiveWebTabPillNode";
 import { $findWebTabPills, $removeWebTabPillsByUrl } from "./pills/WebTabPillNode";
+import { $hasCalendarPills } from "./pills/CalendarPillNode";
 import LexicalEditor from "./LexicalEditor";
 
 interface ChatInputProps {
@@ -51,6 +52,7 @@ interface ChatInputProps {
     contextNotes?: TFile[];
     contextFolders?: string[];
     webTabs?: WebTabContext[];
+    includeCalendar?: boolean;
   }) => void;
   isGenerating: boolean;
   onStopGenerating: () => void;
@@ -235,6 +237,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
     const webTabsFromEditor = getWebTabsFromEditorSnapshot();
     const allWebTabs = mergeWebTabContexts([...contextWebTabs, ...webTabsFromEditor]);
 
+    const includeCalendar = lexicalEditorRef.current?.read(() => $hasCalendarPills()) ?? false;
+
     if (!isCopilotPlus) {
       // Non-Plus chains: only webTabs needs explicit passing
       // - contextNotes: Chat.tsx has state, closure can access
@@ -242,6 +246,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
       // - webTabs: passed here, Active Web Tab injected by ChatManager
       handleSendMessage({
         webTabs: allWebTabs,
+        includeCalendar,
       });
       return;
     }
@@ -271,6 +276,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
       urls: contextUrls,
       contextFolders,
       webTabs: allWebTabs,
+      includeCalendar,
     });
   };
 
